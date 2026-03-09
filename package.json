@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Distributed load testing tool",
+  "license": "MIT",
   "exports": {
     ".": "./dist/core/index.js"
   },
   "bin": {
-    "kfunk": "./dist/cli/index.js"
+    "kfunk": "dist/cli/index.js"
   },
   "files": [
     "dist"
