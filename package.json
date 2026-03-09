@@ -1,5 +1,5 @@
 {
-  "name": "@kfunk/cli",
+  "name": "@kfunk-load/cli",
   "version": "1.0.0",
   "type": "module",
   "description": "Distributed load testing tool",
