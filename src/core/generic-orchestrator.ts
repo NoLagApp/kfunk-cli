@@ -1,13 +1,13 @@
-import { GoogleAuth } from "google-auth-library";
 import type { RuntimeResult, VUMetrics } from "./types.js";
 import type { GenericWorkerRequest, GenericWorkerResponse } from "../worker/generic-handler.js";
+import type { EventPluginConfig } from "./plugin-types.js";
 
 export interface DistributedConfig {
-  /** Cloud Run service URL */
+  /** Worker service URL */
   serviceUrl: string;
   /** The test script source code */
   script: string;
-  /** Number of Cloud Run workers to invoke */
+  /** Number of workers to invoke */
   workers: number;
   /** VUs per worker */
   vusPerWorker: number;
@@ -19,17 +19,10 @@ export interface DistributedConfig {
   workerStaggerMs?: number;
   /** Progress callback */
   onProgress?: (msg: string) => void;
-}
-
-async function getAuthHeaders(serviceUrl: string): Promise<Record<string, string>> {
-  try {
-    const auth = new GoogleAuth();
-    const client = await auth.getIdTokenClient(serviceUrl);
-    const headers = await client.getRequestHeaders();
-    return headers as Record<string, string>;
-  } catch {
-    return {};
-  }
+  /** Pre-computed auth headers (provided by infra plugin or externally) */
+  authHeaders?: Record<string, string>;
+  /** Event plugin configs to send to workers */
+  eventPlugins?: EventPluginConfig[];
 }
 
 async function invokeWorker(
@@ -59,13 +52,12 @@ export async function orchestrateGeneric(config: DistributedConfig): Promise<Run
     staggerMs = 0,
     workerStaggerMs = 0,
     onProgress,
+    authHeaders = {},
+    eventPlugins,
   } = config;
   const log = onProgress ?? (() => {});
 
   const totalVUs = workers * vusPerWorker;
-  log(`Authenticating with Cloud Run...\n`);
-  const headers = await getAuthHeaders(serviceUrl);
-
   log(`Launching ${workers} workers × ${vusPerWorker} VUs = ${totalVUs} total VUs\n`);
   log(`Duration: ${duration}s\n\n`);
 
@@ -79,14 +71,15 @@ export async function orchestrateGeneric(config: DistributedConfig): Promise<Run
       duration,
       staggerMs,
       workerIndex: i,
+      eventPlugins,
     };
 
     const delay = i * workerStaggerMs;
     const launch = delay > 0
       ? new Promise<GenericWorkerResponse>((resolve, reject) =>
-          setTimeout(() => invokeWorker(serviceUrl, request, headers).then(resolve, reject), delay),
+          setTimeout(() => invokeWorker(serviceUrl, request, authHeaders).then(resolve, reject), delay),
         )
-      : invokeWorker(serviceUrl, request, headers);
+      : invokeWorker(serviceUrl, request, authHeaders);
 
     return launch.then((result) => {
       completed++;

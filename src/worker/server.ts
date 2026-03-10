@@ -105,6 +105,7 @@ app.post("/run", async (req, res) => {
       duration: body.duration ?? 30,
       staggerMs: body.staggerMs ?? 0,
       workerIndex: body.workerIndex ?? 0,
+      eventPlugins: body.eventPlugins,
     });
     res.json(result);
   } catch (err) {

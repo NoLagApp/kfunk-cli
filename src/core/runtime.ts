@@ -58,7 +58,7 @@ async function runVU(
 }
 
 export async function runScript(config: RuntimeConfig): Promise<RuntimeResult> {
-  const { scriptPath, vus, duration, staggerMs = 0, onProgress } = config;
+  const { scriptPath, vus, duration, staggerMs = 0, onProgress, onVUStart, onVUComplete } = config;
   const log = onProgress ?? (() => {});
   const durationMs = duration * 1000;
 
@@ -70,16 +70,22 @@ export async function runScript(config: RuntimeConfig): Promise<RuntimeResult> {
 
   let completed = 0;
   const promises = Array.from({ length: vus }, (_, i) => {
+    const launchVU = async () => {
+      onVUStart?.(i, vus);
+      return runVU(script, i, vus, durationMs);
+    };
+
     const delay = i * staggerMs;
     const launch = delay > 0
       ? new Promise<MetricsCollector>((resolve, reject) =>
-          setTimeout(() => runVU(script, i, vus, durationMs).then(resolve, reject), delay),
+          setTimeout(() => launchVU().then(resolve, reject), delay),
         )
-      : runVU(script, i, vus, durationMs);
+      : launchVU();
 
     return launch.then((collector) => {
       completed++;
       log(`\r  ${completed}/${vus} VUs complete`);
+      onVUComplete?.(collector.toVUMetrics());
       return collector;
     });
   });

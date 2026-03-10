@@ -121,6 +121,10 @@ export interface RuntimeConfig {
   staggerMs?: number;
   /** Progress callback */
   onProgress?: (msg: string) => void;
+  /** Called before a VU launches */
+  onVUStart?: (vuId: number, totalVUs: number) => void;
+  /** Called after a VU completes with its metrics */
+  onVUComplete?: (vuMetrics: VUMetrics) => void;
 }
 
 /** Raw collected data from a single VU */

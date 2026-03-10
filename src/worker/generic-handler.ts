@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { MetricsCollector } from "../core/metrics-collector.js";
+import { loadEventPluginsFromConfigs } from "../core/plugin-loader.js";
 import type { TestScript, VUContext, VUMetrics } from "../core/types.js";
+import type { EventPlugin, EventPluginConfig } from "../core/plugin-types.js";
 
 export interface GenericWorkerRequest {
   /** The test script source code as a string */
@@ -17,6 +19,8 @@ export interface GenericWorkerRequest {
   staggerMs?: number;
   /** Worker index (for logging/identification) */
   workerIndex?: number;
+  /** Event plugin configs to load on the worker */
+  eventPlugins?: EventPluginConfig[];
 }
 
 export interface GenericWorkerResponse {
@@ -89,24 +93,51 @@ async function runVU(
 }
 
 export async function handleGenericRun(req: GenericWorkerRequest): Promise<GenericWorkerResponse> {
-  const { script: code, vus, duration, staggerMs = 0, workerIndex = 0 } = req;
+  const { script: code, vus, duration, staggerMs = 0, workerIndex = 0, eventPlugins: eventPluginConfigs } = req;
   const durationMs = duration * 1000;
 
   console.log(`Worker ${workerIndex}: loading script, ${vus} VUs for ${duration}s`);
 
   const { script, cleanup } = await loadScriptFromString(code);
 
+  // Load event plugins if configs were provided
+  let loadedEventPlugins: EventPlugin[] = [];
+  if (eventPluginConfigs && eventPluginConfigs.length > 0) {
+    try {
+      console.log(`Worker ${workerIndex}: loading ${eventPluginConfigs.length} event plugin(s)`);
+      loadedEventPlugins = await loadEventPluginsFromConfigs(eventPluginConfigs);
+    } catch (err) {
+      console.error(`Worker ${workerIndex}: failed to load event plugins:`, err);
+    }
+  }
+
   try {
     const start = Date.now();
 
     const promises = Array.from({ length: vus }, (_, i) => {
+      const launchVU = async () => {
+        // Fire onVUStart on all event plugins
+        for (const plugin of loadedEventPlugins) {
+          try { await plugin.onVUStart?.(i, vus); } catch { /* best-effort */ }
+        }
+        return runVU(script, i, vus, durationMs);
+      };
+
       const delay = i * staggerMs;
       const launch = delay > 0
         ? new Promise<MetricsCollector>((resolve, reject) =>
-            setTimeout(() => runVU(script, i, vus, durationMs).then(resolve, reject), delay),
+            setTimeout(() => launchVU().then(resolve, reject), delay),
           )
-        : runVU(script, i, vus, durationMs);
-      return launch;
+        : launchVU();
+
+      return launch.then(async (collector) => {
+        const metrics = collector.toVUMetrics();
+        // Fire onVUComplete on all event plugins
+        for (const plugin of loadedEventPlugins) {
+          try { await plugin.onVUComplete?.(metrics); } catch { /* best-effort */ }
+        }
+        return collector;
+      });
     });
 
     const results = await Promise.allSettled(promises);
@@ -127,6 +158,8 @@ export async function handleGenericRun(req: GenericWorkerRequest): Promise<Gener
 
     return { workerIndex, vus: vuMetrics, totalDurationMs };
   } finally {
+    // Cleanup event plugins
+    await Promise.allSettled(loadedEventPlugins.map((p) => p.destroy?.()));
     await cleanup();
   }
 }
