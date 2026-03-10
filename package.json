@@ -5,7 +5,10 @@
   "description": "Distributed load testing tool",
   "license": "MIT",
   "exports": {
-    ".": "./dist/core/index.js"
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    }
   },
   "bin": {
     "kfunk": "dist/cli/index.js"
@@ -14,7 +17,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "node build.mjs",
+    "build": "node build.mjs && tsc --emitDeclarationOnly",
     "kfunk": "node dist/cli/index.js"
   },
   "dependencies": {
