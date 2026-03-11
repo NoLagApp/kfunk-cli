@@ -11,7 +11,19 @@ import { displayResults, displayGenericResults } from "./display.js";
 import { execSync } from "child_process";
 import type { TestRunContext } from "../core/plugin-types.js";
 
-program.name("kfunk").description("Distributed load testing tool");
+program
+  .name("kfunk")
+  .version("1.1.1")
+  .description(
+    "kFunk — scriptable load testing CLI\n\n" +
+    "  Run load tests locally or distributed across cloud workers.\n" +
+    "  Write test scripts in JavaScript using the built-in kfunk API.\n\n" +
+    "  Examples:\n" +
+    "    kfunk run test.js                       Run locally with defaults (10 VUs, 30s)\n" +
+    "    kfunk run test.js --vus 50 --duration 60  Run with 50 VUs for 60 seconds\n" +
+    "    kfunk run test.js --config kfunk.config.ts  Run distributed using config plugins\n" +
+    "    kfunk deploy --config kfunk.config.ts       Deploy workers via infra plugin"
+  );
 
 program
   .command("run")
@@ -138,7 +150,7 @@ program
   });
 
 program
-  .command("run-nolag")
+  .command("run-nolag", { hidden: true })
   .description("Run a distributed NoLag load test (legacy)")
   .requiredOption("--token <token>", "Access token")
   .option("--url <url>", "Broker URL")
@@ -185,7 +197,7 @@ program
 
 program
   .command("deploy")
-  .description("Deploy workers using infra plugin or legacy script")
+  .description("Deploy cloud workers using your configured infra plugin")
   .option("--config <path>", "Path to kfunk config file")
   .action(async (opts) => {
     const config = await loadConfig(process.cwd(), opts.config);

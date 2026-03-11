@@ -1,6 +1,6 @@
 {
   "name": "@kfunk-load/cli",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "description": "Distributed load testing tool",
   "license": "MIT",
@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "build": "node build.mjs && tsc --emitDeclarationOnly",
-    "kfunk": "node dist/cli/index.js"
+    "kfunk": "node dist/cli/index.js",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "express": "^4.18.0",
